@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ARCH="sdr"
+W=512
+H=512
+B=32
+SX=23
+SY=23
+WAIT_ALPHA=1
+
+RUNS=1
+WSE_LIFETIME=600
+WSE_SERVER="http://localhost:8080"
+OUT="out_hw/timing_5runs"
+
+JOB="xy-sync-$(date +%Y%m%d_%H%M%S)"
+
+export JOB
+export WSE_SERVER
+
+make clean
+
+make build-run \
+    ARCH="$ARCH" \
+    W="$W" \
+    H="$H" \
+    B="$B" \
+    SX="$SX" \
+    SY="$SY" \
+    WAIT_ALPHA="$WAIT_ALPHA"
+
+make wse-queue \
+    WSE_JOB="$JOB" \
+    WSE_SERVER="$WSE_SERVER" \
+    WSE_WIDTH="$W" \
+    WSE_HEIGHT="$H" \
+    WSE_LIFETIME="$WSE_LIFETIME"
+
+echo "JOB=$JOB"
+echo "W=$W H=$H B=$B RUNS=$RUNS"
+
+JOB="$JOB" \
+WSE_SERVER="$WSE_SERVER" \
+W="$W" \
+H="$H" \
+B="$B" \
+RUNS="$RUNS" \
+OUT="$OUT" \
+./run_5_timings.sh
+
+column -s, -t "$OUT/results.csv"
+
+# Plain AllReduce returns a B-element vector, so use verify.py,
+# not verify_dotprod.py.
+shopt -s nullglob
+
+for trial in "$OUT"/trial_*; do
+    actual="$trial/result-root.bin"
+    reference=("$trial"/root_result/*.result.bin)
+
+    if [[ ! -f "$actual" ]]; then
+        echo "SKIPPED verification, result not collected: $trial"
+        continue
+    fi
+
+    if [[ ${#reference[@]} -ne 1 ]]; then
+        echo "SKIPPED verification, expected one root reference: $trial"
+        continue
+    fi
+
+    if python3 verify.py \
+        --reference "${reference[0]}" \
+        --actual "$actual" \
+        --mode tolerant \
+        --atol 1e-5 \
+        --rtol 1e-5 \
+        >"$trial/verification.txt" 2>&1; then
+        echo "VALID:   $trial"
+    else
+        echo "INVALID: $trial"
+        cat "$trial/verification.txt"
+    fi
+done

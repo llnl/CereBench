@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+export JOB="${CALIBRATION_JOB:-gemv-xy2phase-cal-$(date +%Y%m%d_%H%M%S)}"
+export WSE_SERVER="${WSE_SERVER:-http://localhost:8080}"
+
+export ARCH="${ARCH:-sdr}"
+export W="${W:-512}"
+export H="${H:-512}"
+export M="${M:-64}"
+export N="${N:-512}"
+export SX="${SX:-23}"
+export SY="${SY:-23}"
+export PROFILE_STAGES="${PROFILE_STAGES:-0}"
+export INPUT_MODE="${INPUT_MODE:-pattern}"
+
+export RUNS="${RUNS:-5}"
+export ALPHA_START="${ALPHA_START:-0}"
+export ALPHA_MAX="${ALPHA_MAX:-16}"
+export ALPHA_STEP="${ALPHA_STEP:-1}"
+export TARGET_SPREAD="${TARGET_SPREAD:-129}"
+export CLOCK_MHZ="${CLOCK_MHZ:-850}"
+
+export WSE_LIFETIME="${WSE_LIFETIME:-500}"
+export QUEUE_RETRY_SECONDS="${QUEUE_RETRY_SECONDS:-30}"
+export BUNDLE_SETTLE_SECONDS="${BUNDLE_SETTLE_SECONDS:-2}"
+
+export OUT="${OUT:-calibration_results/$JOB}"
+DRIVER_LOG_DIR="${DRIVER_LOG_DIR:-calibration_driver_logs}"
+
+[[ -f calibrate_wait_alpha.sh ]] || {
+    echo "Missing calibrate_wait_alpha.sh"
+    exit 1
+}
+
+[[ -f collect_timings.py ]] || {
+    echo "Missing collect_timings.py"
+    exit 1
+}
+
+chmod +x calibrate_wait_alpha.sh
+mkdir -p "$DRIVER_LOG_DIR"
+
+# this command is executed once for every tested alpha
+export BUILD_CMD='
+make clean &&
+make build-run \
+    ARCH="$ARCH" \
+    W="$W" H="$H" \
+    M="$M" N="$N" \
+    SX="$SX" SY="$SY" \
+    WAIT_ALPHA="$WAIT_ALPHA" \
+    PROFILE_STAGES="$PROFILE_STAGES" \
+    INPUT_MODE="$INPUT_MODE"
+'
+
+# used both here and by the recovery patch, if installed
+export BUNDLE_CREATE_CMD='
+make wse-queue \
+    WSE_JOB="$JOB" \
+    WSE_SERVER="$WSE_SERVER" \
+    WSE_WIDTH="$W" \
+    WSE_HEIGHT="$H" \
+    WSE_LIFETIME="$WSE_LIFETIME"
+'
+
+export BUNDLE_RETRY_SECONDS="$QUEUE_RETRY_SECONDS"
+export BUNDLE_CREATE_RETRIES=0
+
+MISSING_BUNDLE_REGEX='bundle.*(does not exist|does.?t exist|not found|no such|unknown|expired|not active)|(does not exist|does.?t exist|not found|no such|unable to find|could not find).*bundle|bundle.*404|404.*bundle'
+
+create_bundle() {
+    local attempt=1
+
+    while true; do
+        echo
+        echo "Creating bundle $JOB, attempt $attempt"
+
+        if bash -c "$BUNDLE_CREATE_CMD"; then
+            echo "Bundle $JOB created."
+            sleep "$BUNDLE_SETTLE_SECONDS"
+            return 0
+        fi
+
+        echo
+        echo "Bundle creation failed, possibly because the WSE is full."
+        echo "Retrying in $QUEUE_RETRY_SECONDS seconds."
+        sleep "$QUEUE_RETRY_SECONDS"
+
+        attempt=$((attempt + 1))
+    done
+}
+
+echo "Performing initial build for WAIT_ALPHA=$ALPHA_START"
+WAIT_ALPHA="$ALPHA_START" bash -c "$BUILD_CMD"
+
+if [[ "${REUSE_BUNDLE:-0}" == "1" ]]; then
+    echo "Reusing existing bundle $JOB"
+else
+    create_bundle
+fi
+
+attempt=1
+
+while true; do
+    log="$DRIVER_LOG_DIR/attempt_${attempt}_$(date +%Y%m%d_%H%M%S).log"
+
+    echo
+    echo "Starting calibration attempt $attempt"
+    echo "JOB=$JOB"
+    echo "Log=$log"
+
+    set +e
+    bash ./calibrate_wait_alpha.sh 2>&1 | tee "$log"
+    status="${PIPESTATUS[0]}"
+    set -e
+
+    if (( status == 0 )); then
+        echo
+        echo "Calibration completed successfully."
+
+        if [[ -f "$OUT/selected_alpha.txt" ]]; then
+            echo "Selected WAIT_ALPHA=$(cat "$OUT/selected_alpha.txt")"
+        fi
+
+        exit 0
+    fi
+
+    if grep -Eiq "$MISSING_BUNDLE_REGEX" "$log"; then
+        echo
+        echo "The bundle disappeared. Recreating the same bundle."
+        create_bundle
+        attempt=$((attempt + 1))
+        continue
+    fi
+
+    echo
+    echo "Calibration failed with status $status."
+    echo "This did not look like a missing-bundle error."
+    echo "See $log"
+    exit "$status"
+done

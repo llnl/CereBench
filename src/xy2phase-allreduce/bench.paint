@@ -1,0 +1,244 @@
+define horizontal_edge(x0 len c) {
+    let mid_x = x0 + 1
+    let mid_w = len - 1
+    let src_x = x0 + len
+
+    let dst = tile(x0 0)
+    let mid = rect(mid_x 0 mid_w 1)
+    let src = tile(src_x 0)
+
+    dst : paint(c [R>C])
+    mid : paint(c [R>L])
+    src : paint(c [C>L])
+
+    union(dst mid src)
+}
+
+define horizontal_phase2(W H S ca cb) {
+    let q = idiv(W S)
+    let r = mod(W S)
+    let full_edges = q - 1
+
+    let first_count = idiv(full_edges + 1 2)
+    let second_count = idiv(full_edges 2)
+    let stride = 2 * S
+
+    let nz = idiv(r + S - 1 S)
+    let base = r
+
+    let ca_start = base + nz * S
+    let cb_start = base + (1 - nz) * S
+
+    let ca_count =
+        first_count - nz * (first_count - second_count)
+
+    let cb_count =
+        second_count + nz * (first_count - second_count)
+
+    let irregular_count = nz
+    let irregular_len = S + nz * (r - S)
+
+    let irregular_template =
+        horizontal_edge(0 irregular_len ca)
+
+    let irregular_one =
+        rep(irregular_template 'ie irregular_count 0 0)
+
+    let irregular_rows =
+        rep(irregular_one 'iy H 0 1)
+
+    let ca_template =
+        horizontal_edge(ca_start S ca)
+
+    let ca_edges =
+        rep(ca_template 'ae ca_count stride 0)
+
+    let ca_rows =
+        rep(ca_edges 'ay H 0 1)
+
+    let cb_template =
+        horizontal_edge(cb_start S cb)
+
+    let cb_edges =
+        rep(cb_template 'be cb_count stride 0)
+
+    let cb_rows =
+        rep(cb_edges 'by H 0 1)
+
+    union(irregular_rows ca_rows cb_rows)
+}
+
+define vertical_edge(y0 len c) {
+    let mid_y = y0 + 1
+    let mid_h = len - 1
+    let src_y = y0 + len
+
+    let dst = tile(0 y0)
+    let mid = rect(0 mid_y 1 mid_h)
+    let src = tile(0 src_y)
+
+    dst : paint(c [U>C])
+    mid : paint(c [U>D])
+    src : paint(c [C>D])
+
+    union(dst mid src)
+}
+
+define vertical_phase2(H S ca cb) {
+    let q = idiv(H S)
+    let r = mod(H S)
+    let full_edges = q - 1
+
+    let first_count = idiv(full_edges + 1 2)
+    let second_count = idiv(full_edges 2)
+    let stride = 2 * S
+
+    let nz = idiv(r + S - 1 S)
+    let base = r
+
+    let ca_start = base + nz * S
+    let cb_start = base + (1 - nz) * S
+
+    let ca_count =
+        first_count - nz * (first_count - second_count)
+
+    let cb_count =
+        second_count + nz * (first_count - second_count)
+
+    let irregular_count = nz
+    let irregular_len = S + nz * (r - S)
+
+    let irregular_template =
+        vertical_edge(0 irregular_len ca)
+
+    let irregular =
+        rep(irregular_template 'iv irregular_count 0 0)
+
+    let ca_template =
+        vertical_edge(ca_start S ca)
+
+    let ca_edges =
+        rep(ca_template 'av ca_count 0 stride)
+
+    let cb_template =
+        vertical_edge(cb_start S cb)
+
+    let cb_edges =
+        rep(cb_template 'bv cb_count 0 stride)
+
+    union(irregular ca_edges cb_edges)
+}
+
+let x1_rx = color()
+let x1_tx = color()
+let y1_rx = color()
+let y1_tx = color()
+
+let x2a = color()
+let x2b = color()
+let y2a = color()
+let y2b = color()
+
+let bc = color()
+
+let grid = rect(0 0 W H)
+
+let root_code = tile(0 0)
+
+let worker_top_w = W - 1
+let worker_top = rect(1 0 worker_top_w 1)
+
+let worker_lower_h = H - 1
+let worker_lower = rect(0 1 W worker_lower_h)
+
+root_code : code('allreduce_root [
+x1:x1_rx
+    y1:y1_rx
+    x2a:x2a
+    x2b:x2b
+    y2a:y2a
+    y2b:y2b
+    bcast:bc
+    W:W
+    H:H
+    B:B
+    SX:SX
+    SY:SY
+    WAIT_ALPHA:WAIT_ALPHA
+])
+root_code : name('root)
+
+worker_top : code('allreduce_worker [
+x1:x1_rx
+    y1:y1_rx
+    x2a:x2a
+    x2b:x2b
+    y2a:y2a
+    y2b:y2b
+    bcast:bc
+    W:W
+    H:H
+    B:B
+    SX:SX
+    SY:SY
+    WAIT_ALPHA:WAIT_ALPHA
+])
+worker_top : name('worker_top)
+
+worker_lower : code('allreduce_worker [
+x1:x1_rx
+    y1:y1_rx
+    x2a:x2a
+    x2b:x2b
+    y2a:y2a
+    y2b:y2b
+    bcast:bc
+    W:W
+    H:H
+    B:B
+    SX:SX
+    SY:SY
+    WAIT_ALPHA:WAIT_ALPHA
+])
+worker_lower : name('worker_lower)
+
+let code_regions =
+    union(root_code worker_top worker_lower)
+
+grid : colorpair(x1_rx x1_tx)
+grid : paint(x1_tx [CXL|L])
+grid : paint(x1_rx [R|RXC])
+
+grid : colorpair(y1_rx y1_tx)
+grid : paint(y1_tx [CXD|D])
+grid : paint(y1_rx [U|UXC])
+
+grid : name('grid)
+
+let x_phase2_routes =
+    horizontal_phase2(W H SX x2a x2b)
+
+let y_phase2_routes =
+    vertical_phase2(H SY y2a y2b)
+
+let root = tile(0 0)
+
+let top_mid_w = W - 2
+let top_mid = rect(1 0 top_mid_w 1)
+let top_right = tile(W - 1 0)
+
+let middle_h = H - 2
+let middle = rect(0 1 W middle_h)
+let bottom = rect(0 H - 1 W 1)
+
+root 	  : paint(x2b [L>R])
+root : paint(y2b [L>R])
+root      : paint(bc [C>RU])
+top_mid   : paint(bc [L>CRU])
+top_right : paint(bc [L>CU])
+middle    : paint(bc [D>CU])
+bottom    : paint(bc [D>C])
+let broadcast_routes =
+    union(root top_mid top_right middle bottom)
+
+union(grid code_regions x_phase2_routes y_phase2_routes broadcast_routes)

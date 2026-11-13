@@ -1,0 +1,13 @@
+metric,cycles,microseconds,counter_direction,start_x,start_y,stop_x,stop_y
+start_spread,13,0.015294118,up,1,0,0,0
+compute_x1_fused,4420,5.200000000,up,1,0,0,0
+root_remaining_reduction,6524,7.675294118,up,7,3,0,0
+all_pe_remaining_reduction_return,6524,7.675294118,up,7,3,0,0
+broadcast_from_root,69,0.081176471,up,0,0,15,15
+remaining_collective,6593,7.756470588,up,7,3,15,15
+dotprod_total,10333,12.156470588,up,1,0,15,15
+max_local_compute_x1_fused,4407,5.184705882,up,0,0,0,0
+max_local_remaining_reduction,5844,6.875294118,up,0,0,0,0
+max_local_post_reduction,6564,7.722352941,up,15,13,15,13
+max_local_remaining_collective,6591,7.754117647,up,15,13,15,13
+root_local_remaining_reduction,5844,6.875294118,up,0,0,0,0

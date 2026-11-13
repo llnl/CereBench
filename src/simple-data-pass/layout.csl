@@ -1,0 +1,41 @@
+param width: i16;
+param height: i16;
+param tensor_size: i16;
+
+// only need one color to move data East
+const c_east = @get_color(2);
+
+const memcpy = @import_module("<memcpy/get_params>", .{ .width = width, .height = height });
+
+layout {
+    @set_rectangle(width, height);
+
+    for (@range(i16, width)) |x| {
+        for (@range(i16, height)) |y| {
+            
+            // pass the coordinates so the PE knows where it lives
+            @set_tile_code(x, y, "pe.csl", .{
+                .memcpy_params = memcpy.get_params(x),
+                .pe_x = x,
+                .width = width,
+                .c_east = c_east,
+		.tensor_size = tensor_size,
+            });
+
+            // ROUTER CONFIGURATION
+            if (x == 0) {
+                // left PE: Take data from the Compute Element (RAMP) and send EAST
+                @set_color_config(x, y, c_east, .{ .routes = .{ .rx = .{RAMP}, .tx = .{EAST} } });
+            } else if (x == width - 1) {
+                // right PE: Take data from the WEST and send it to the Compute Element (RAMP)
+                @set_color_config(x, y, c_east, .{ .routes = .{ .rx = .{WEST}, .tx = .{RAMP} } });
+            } else {
+                // middle PEs: Receive West, copy to RAMP, and forward EAST
+                @set_color_config(x, y, c_east, .{ .routes = .{ .rx = .{WEST}, .tx = .{RAMP, EAST} } });
+            }
+        }
+    }
+
+    @export_name("compute", fn()void);
+    @export_name("data_buffer", [*]f32, true);
+}

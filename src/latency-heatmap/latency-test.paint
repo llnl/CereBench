@@ -1,0 +1,27 @@
+let b0 = bank(0)
+let b0color = color(b0)
+
+let center = tile(CX CY)
+center : code('controller [mp_sock:b0color NPROBE:NPROBE NWARMUP:NWARMUP CX:CX CY:CY])
+center : mp(b0)
+center : name('center)
+
+let left = rect(0 0 CX H)
+left : code('echo [mp_sock:b0color CX:CX CY:CY])
+left : mp(b0)
+
+let right_w = W - CX - 1
+let right = rect(CX + 1 0 right_w H)
+right : code('echo [mp_sock:b0color CX:CX CY:CY])
+right : mp(b0)
+
+let below = rect(CX 0 1 CY)
+below : code('echo [mp_sock:b0color CX:CX CY:CY])
+below : mp(b0)
+
+let above_h = H - CY - 1
+let above = rect(CX CY + 1 1 above_h)
+above : code('echo [mp_sock:b0color CX:CX CY:CY])
+above : mp(b0)
+
+union(left right below above center)

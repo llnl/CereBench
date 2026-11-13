@@ -1,0 +1,22 @@
+make clean
+
+export JOB="xy-sync-$(date +%Y%m%d_%H%M%S)"
+export WSE_SERVER="http://localhost:8080"
+
+make build-run \
+    ARCH=sdr \
+    W=16 H=16 B=256 \
+    SX=4 SY=4 \
+    WAIT_ALPHA=0
+
+make wse-queue \
+    WSE_JOB="$JOB" \
+    WSE_SERVER="$WSE_SERVER" \
+    WSE_WIDTH=16 \
+    WSE_HEIGHT=16 \
+    WSE_LIFETIME=500
+
+echo "JOB=$JOB"
+JOB="$JOB" W=16 H=16 ./run_5_timings.sh
+
+column -s, -t out_hw/timing_5runs/results.csv

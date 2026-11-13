@@ -1,0 +1,71 @@
+define relay_lr(tt cc) {
+    tt : paint(cc [L>R])
+    tt
+}
+
+define relay_lu(tt cc) {
+    tt : paint(cc [L>U])
+    tt
+}
+
+define relay_ld(tt cc) {
+    tt : paint(cc [L>D])
+    tt
+}
+
+define relay_rl(tt cc) {
+    tt : paint(cc [R>L])
+    tt
+}
+
+define relay_ru(tt cc) {
+    tt : paint(cc [R>U])
+    tt
+}
+
+define relay_rd(tt cc) {
+    tt : paint(cc [R>D])
+    tt
+}
+
+define relay_ul(tt cc) {
+    tt : paint(cc [U>L])
+    tt
+}
+
+define relay_ur(tt cc) {
+    tt : paint(cc [U>R])
+    tt
+}
+
+define relay_ud(tt cc) {
+    tt : paint(cc [U>D])
+    tt
+}
+
+define relay_dl(tt cc) {
+    tt : paint(cc [D>L])
+    tt
+}
+
+define relay_dr(tt cc) {
+    tt : paint(cc [D>R])
+    tt
+}
+
+define relay_du(tt cc) {
+    tt : paint(cc [D>U])
+    tt
+}
+
+define relay_horizontal(tt c_lr c_rl) {
+    tt : paint(c_lr [L>R])
+    tt : paint(c_rl [R>L])
+    tt
+}
+
+define relay_vertical(tt c_ud c_du) {
+    tt : paint(c_ud [U>D])
+    tt : paint(c_du [D>U])
+    tt
+}

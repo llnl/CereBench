@@ -1,0 +1,11 @@
+{
+  "lifetime": 40000,
+  "regions": {
+    "main_compute": {
+      "wafer": "xs20863",
+      "width": 512,
+      "height": 512,
+      "padding": 0
+    }
+  }
+}

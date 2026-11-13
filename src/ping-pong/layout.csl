@@ -1,0 +1,59 @@
+param width: i16;
+param height: i16;
+param tensor_size: i16;
+
+const c_east = @get_color(2);
+const c_west = @get_color(3);
+
+const memcpy = @import_module("<memcpy/get_params>", .{
+  .width = width,
+  .height = height
+});
+
+layout {
+  @set_rectangle(width, height);
+
+  for (@range(i16, width)) |x| {
+    for (@range(i16, height)) |y| {
+      @set_tile_code(x, y, "pe.csl", .{
+        .memcpy_params = memcpy.get_params(x),
+        .pe_x = x,
+        .width = width,
+        .c_east = c_east,
+        .c_west = c_west,
+        .tensor_size = tensor_size
+      });
+
+      if (x == 0) {
+        @set_color_config(x, y, c_east, .{
+          .routes = .{ .rx = .{RAMP}, .tx = .{EAST} }
+        });
+      } else if (x == width - 1) {
+        @set_color_config(x, y, c_east, .{
+          .routes = .{ .rx = .{WEST}, .tx = .{RAMP} }
+        });
+      } else {
+        @set_color_config(x, y, c_east, .{
+          .routes = .{ .rx = .{WEST}, .tx = .{RAMP, EAST} }
+        });
+      }
+
+      if (x == 0) {
+        @set_color_config(x, y, c_west, .{
+          .routes = .{ .rx = .{EAST}, .tx = .{RAMP} }
+        });
+      } else if (x == width - 1) {
+        @set_color_config(x, y, c_west, .{
+          .routes = .{ .rx = .{RAMP}, .tx = .{WEST} }
+        });
+      } else {
+        @set_color_config(x, y, c_west, .{
+          .routes = .{ .rx = .{EAST}, .tx = .{RAMP, WEST} }
+        });
+      }
+    }
+  }
+
+  @export_name("compute", fn()void);
+  @export_name("data_buffer", [*]f32, true);
+}

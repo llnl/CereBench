@@ -1,0 +1,413 @@
+%!ps
+
+/min { 2 copy gt { exch } if pop } bind def
+/max { 2 copy lt { exch } if pop } bind def
+% height orientation tipu tipl arrow -
+/arrow {
+	4 dict begin
+	/tl exch def
+	/tu exch def
+	/o exch def
+	/h exch 4 div def
+	gsave newpath
+	9 20 div 9 20 div scale
+	o 90 mul rotate
+	h abs h moveto
+	1 h lineto
+
+	tu tl and { 1 h translate
+            1 neg 5 div 1 5 div moveto
+            0 0 lineto
+            1 neg 5 div 1 neg 5 div lineto }
+	{ tu { 1 h translate -1 5 div +1 5 div lineto } if
+	  tl { 1 h translate -1 5 div -1 5 div lineto } if
+	} ifelse
+
+        stroke
+        grestore
+	end
+} def
+
+/cross {
+	gsave newpath
+	9 20 div 9 20 div scale
+
+	1 4 neg div dup moveto
+	1 4 div dup lineto
+	1 4 div dup neg moveto
+	1 4 div dup neg exch lineto
+
+	stroke
+	grestore
+} def
+
+% x y r box -
+/box {
+	3 dict begin
+	/r exch def
+	/y exch def
+	/x exch def
+	gsave newpath
+	x y translate
+	45 rotate
+	r neg r neg moveto
+	r neg r     lineto
+	r     r     lineto
+	r     r neg lineto
+	closepath
+	stroke
+	grestore
+	end
+} def
+
+% direction switch ramp -
+/ramp {
+	2 dict begin
+	/s exch def
+	/d exch def
+
+	gsave newpath
+	9 20 div 9 20 div scale
+
+	s
+	{ d { -1 4 div -1 4 div 1 6 div 0 360 arc fill }
+            { +1 4 div +1 4 div 1 6 div box } ifelse } % cross switch
+	{ d { 0 0 1 6 div 0 360 arc fill }
+            { 45 rotate 0 0 1 4 div box } ifelse } % plain switch
+	ifelse
+
+	grestore
+	end
+} def
+
+% str pat contains - bool
+/contains {
+	search
+	{ pop pop pop true }
+	{ pop false }
+	ifelse
+} def
+
+% (a) (b) concat (ab)  
+/concat {
+	exch dup length    
+	2 index length add string    
+	dup dup 4 2 roll copy length
+	4 -1 roll putinterval
+} def
+
+% src tgt port arrowhelper -
+/arrowhelper {
+	4 dict begin
+	/port exch def
+	/tgt exch def
+	/src exch def
+	/o exch def
+	o tgt port contains dup src port contains not and
+	% o 2 mod 0 eq { exch } if
+        arrow
+	end
+} def
+
+% x y str dx dy n subicon
+/subicon {
+	6 dict begin
+	/n exch def
+	/dy exch def
+	/dx exch def
+	/str exch def
+	/y exch def
+	/x exch def
+
+	gsave
+	1 n div dup scale
+	x n mul dx add
+	y 1 add n mul dy add
+	str
+	icon
+	grestore
+
+	end
+} def
+
+% x y str icon -
+/icon {
+	8 dict begin
+	/s exch def
+	/y exch def
+	/x exch def
+	gsave
+	x 0.5 add y 0.5 sub translate
+
+	[ s (X) search /switch exch def ]
+	[ s (>) search /plain exch def ]
+
+	switch plain xor not { quit } if
+
+	switch { exch } if
+
+	aload pop      % expand matching array
+	/src exch def  % source ports
+	pop            % matched keyword
+	/tgt exch def  % target ports
+	pop            % failed match array
+
+	plain
+	{
+		src tgt concat /port exch def
+
+		port (R) contains { 0 0 src tgt (R) arrowhelper } if
+		port (U) contains { 0 1 src tgt (U) arrowhelper } if
+		port (L) contains { 0 2 src tgt (L) arrowhelper } if
+		port (D) contains { 0 3 src tgt (D) arrowhelper } if
+		src (C) contains { false false ramp } if
+		tgt (C) contains { true false ramp } if
+	}
+	{
+		src (r) contains { -1 0 false false arrow } if
+		src (u) contains { +1 1 false false arrow } if
+		src (l) contains { -1 2 false false arrow } if
+		src (d) contains { +1 3 false false arrow } if
+		%src (c) contains { false true ramp } if
+
+		src (R) contains { +1 0 false false arrow } if
+		src (U) contains { -1 1 false false arrow } if
+		src (L) contains { +1 2 false false arrow } if
+		src (D) contains { -1 3 false false arrow } if
+		src (C) contains { false true ramp } if
+
+		tgt (R) contains { +1 0 true true arrow } if
+		tgt (U) contains { -1 1 true true arrow } if
+		tgt (L) contains { +1 2 true true arrow } if
+		tgt (D) contains { -1 3 true true arrow } if
+		tgt (C) contains { true true ramp } if
+		cross
+	}
+	ifelse
+	
+	grestore
+	end
+} def
+
+% x y w h name color rect -
+/rect {
+	6 dict begin
+	/color exch def
+	/name exch def
+	/h exch def
+	/w exch def
+	/y exch def
+	/x exch def
+
+	gsave
+	x y moveto
+	w 0 rlineto
+	0 h rlineto
+	w neg 0 rlineto
+	closepath
+	color nrect div 0.1 1 sethsbcolor
+	fill
+	%x y translate
+	% w h grid
+	grestore
+	
+	gsave
+	newpath
+	x y moveto
+	w 0 rlineto
+	0 h rlineto
+	w neg 0 rlineto
+	closepath
+	stroke
+
+	x y translate
+	0 0 moveto
+
+	% w h mul lt { -90 rotate } if
+
+	currentfont
+	name true charpath pathbbox
+	3 -1 roll sub dup /hh exch def h exch div
+	3  1 roll exch sub w exch div
+	min 0.8 mul dup /xfactor exch def scalefont
+	setfont newpath
+	name stringwidth pop 
+	2 div neg w 2 div add 0 moveto name show
+	stroke
+
+	grestore
+	end
+} def
+
+% w h grid -
+/grid {
+	2 dict begin
+	/h exch def
+	/w exch def
+	gsave
+
+	1 40 div setlinewidth
+	0.9 0.9 1.0 setrgbcolor
+
+	0 1 w { newpath 0 moveto 0 h rlineto stroke } for
+	0 1 h { newpath 0 exch moveto w 0 rlineto stroke } for
+
+	grestore
+	end
+} def
+1 setgray clippath fill
+0 setgray
+gsave
+18 582 translate
+12.00 dup scale
+16 16 grid
+1 20 div setlinewidth
+/NimbusSans-Regular findfont 6 10 div  scalefont setfont
+/nrect 21 def
+  0   0  16  16 (0:grid) 0 rect
+  0   0   1   1 (1:root) 1 rect
+  1   0  15   1 (2:worker_top) 2 rect
+  0   1  16  15 (3:worker_lower) 3 rect
+  0   0   1  16 (4:) 4 rect
+  8   0   1  16 (4:) 4 rect
+  1   0   3   1 (5:) 5 rect
+  1   1   3   1 (5:) 5 rect
+  1   2   3   1 (5:) 5 rect
+  1   3   3   1 (5:) 5 rect
+  1   4   3   1 (5:) 5 rect
+  1   5   3   1 (5:) 5 rect
+  1   6   3   1 (5:) 5 rect
+  1   7   3   1 (5:) 5 rect
+  1   8   3   1 (5:) 5 rect
+  1   9   3   1 (5:) 5 rect
+  1  10   3   1 (5:) 5 rect
+  1  11   3   1 (5:) 5 rect
+  1  12   3   1 (5:) 5 rect
+  1  13   3   1 (5:) 5 rect
+  1  14   3   1 (5:) 5 rect
+  1  15   3   1 (5:) 5 rect
+  9   0   3   1 (5:) 5 rect
+  9   1   3   1 (5:) 5 rect
+  9   2   3   1 (5:) 5 rect
+  9   3   3   1 (5:) 5 rect
+  9   4   3   1 (5:) 5 rect
+  9   5   3   1 (5:) 5 rect
+  9   6   3   1 (5:) 5 rect
+  9   7   3   1 (5:) 5 rect
+  9   8   3   1 (5:) 5 rect
+  9   9   3   1 (5:) 5 rect
+  9  10   3   1 (5:) 5 rect
+  9  11   3   1 (5:) 5 rect
+  9  12   3   1 (5:) 5 rect
+  9  13   3   1 (5:) 5 rect
+  9  14   3   1 (5:) 5 rect
+  9  15   3   1 (5:) 5 rect
+  4   0   1  16 (6:) 6 rect
+ 12   0   1  16 (6:) 6 rect
+  4   0   1  16 (7:) 7 rect
+  5   0   3   1 (8:) 8 rect
+  5   1   3   1 (8:) 8 rect
+  5   2   3   1 (8:) 8 rect
+  5   3   3   1 (8:) 8 rect
+  5   4   3   1 (8:) 8 rect
+  5   5   3   1 (8:) 8 rect
+  5   6   3   1 (8:) 8 rect
+  5   7   3   1 (8:) 8 rect
+  5   8   3   1 (8:) 8 rect
+  5   9   3   1 (8:) 8 rect
+  5  10   3   1 (8:) 8 rect
+  5  11   3   1 (8:) 8 rect
+  5  12   3   1 (8:) 8 rect
+  5  13   3   1 (8:) 8 rect
+  5  14   3   1 (8:) 8 rect
+  5  15   3   1 (8:) 8 rect
+  8   0   1  16 (9:) 9 rect
+  0   0   1   1 (10:) 10 rect
+  0   8   1   1 (10:) 10 rect
+  0   1   1   3 (11:) 11 rect
+  0   9   1   3 (11:) 11 rect
+  0   4   1   1 (12:) 12 rect
+  0  12   1   1 (12:) 12 rect
+  0   4   1   1 (13:) 13 rect
+  0   5   1   3 (14:) 14 rect
+  0   8   1   1 (15:) 15 rect
+  0   0   1   1 (16:) 16 rect
+  1   0  14   1 (17:) 17 rect
+ 15   0   1   1 (18:) 18 rect
+  0   1  16  14 (19:) 19 rect
+  0  15  16   1 (20:) 20 rect
+grestore
+gsave
+228 18 translate
+36.00 dup scale
+1 20 div setlinewidth
+9 21 grid
+/NimbusSans-Regular findfont 1 5 div scalefont setfont
+ 2 20         (uXC) 0 -0 1.0 subicon
+ 2 20         (uXC) 2 -0 3.0 subicon
+ 3 20         (cXD) 0 -0 1.0 subicon
+ 3 20         (cXD) 2 -0 3.0 subicon
+ 0 20         (rXC) 0 -0 1.0 subicon
+ 0 20         (rXC) 2 -0 3.0 subicon
+ 1 20         (cXL) 0 -0 1.0 subicon
+ 1 20         (cXL) 2 -0 3.0 subicon
+
+
+
+
+ 4 16         (R>C) 0 -0 1.0 subicon
+ 4 16         (R>C) 2 -0 3.0 subicon
+
+ 4 15         (R>L) 0 -0 1.0 subicon
+ 4 15         (R>L) 2 -0 3.0 subicon
+
+ 4 14         (C>L) 0 -0 1.0 subicon
+ 4 14         (C>L) 2 -0 3.0 subicon
+
+ 5 13         (R>C) 0 -0 1.0 subicon
+ 5 13         (R>C) 2 -0 3.0 subicon
+
+ 5 12         (R>L) 0 -0 1.0 subicon
+ 5 12         (R>L) 2 -0 3.0 subicon
+
+ 5 11         (C>L) 0 -0 1.0 subicon
+ 5 11         (C>L) 2 -0 3.0 subicon
+
+ 6 10         (U>C) 0 -0 1.0 subicon
+ 6 10         (U>C) 2 -0 3.0 subicon
+
+ 6 9          (U>D) 0 -0 1.0 subicon
+ 6 9          (U>D) 2 -0 3.0 subicon
+
+ 6 8          (C>D) 0 -0 1.0 subicon
+ 6 8          (C>D) 2 -0 3.0 subicon
+
+ 7 7          (U>C) 0 -0 1.0 subicon
+ 7 7          (U>C) 2 -0 3.0 subicon
+
+ 7 6          (U>D) 0 -0 1.0 subicon
+ 7 6          (U>D) 2 -0 3.0 subicon
+
+ 7 5          (C>D) 0 -0 1.0 subicon
+ 7 5          (C>D) 2 -0 3.0 subicon
+
+ 8 4         (C>RU) 0 -0 1.0 subicon
+ 8 4         (C>RU) 2 -0 3.0 subicon
+ 7 4          (L>R) 0 -0 1.0 subicon
+ 7 4          (L>R) 2 -0 3.0 subicon
+ 5 4          (L>R) 0 -0 1.0 subicon
+ 5 4          (L>R) 2 -0 3.0 subicon
+
+ 8 3        (L>RUC) 0 -0 1.0 subicon
+ 8 3        (L>RUC) 2 -0 3.0 subicon
+
+ 8 2         (L>UC) 0 -0 1.0 subicon
+ 8 2         (L>UC) 2 -0 3.0 subicon
+
+ 8 1         (D>UC) 0 -0 1.0 subicon
+ 8 1         (D>UC) 2 -0 3.0 subicon
+
+ 8 0          (D>C) 0 -0 1.0 subicon
+ 8 0          (D>C) 2 -0 3.0 subicon
+
+grestore

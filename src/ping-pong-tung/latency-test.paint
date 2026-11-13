@@ -1,0 +1,23 @@
+include "relay_lib.paint"
+
+let c_w2e = color()
+let c_e2w = color()
+
+let west = tile()
+west : code('west [tx:c_w2e rx:c_e2w tensor_size:tensor_size num_msgs:NUM_MSGS])
+west : paint(c_w2e [C>R])
+west : paint(c_e2w [R>C])
+west : name('west)
+
+let relay_template = tile()
+relay_template : relay_horizontal(c_w2e c_e2w)
+
+let relays = rep(relay_template 'i DIST 1 0)
+
+let east = tile()
+east : code('east [rx:c_w2e tx:c_e2w tensor_size:tensor_size num_msgs:NUM_MSGS])
+east : paint(c_w2e [L>C])
+east : paint(c_e2w [C>L])
+east : name('east)
+
+hstack(west relays east)

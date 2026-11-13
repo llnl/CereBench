@@ -1,0 +1,140 @@
+param memcpy_params;
+param pe_x: i16;
+param width: i16;
+param c_east: color;
+param c_west: color;
+param tensor_size: i16;
+
+const sys_mod = @import_module("<memcpy/memcpy>", memcpy_params);
+
+var data_buffer = @zeros([tensor_size]f32);
+var ptr_data: [*]f32 = &data_buffer;
+
+const mem_dsd = @get_dsd(mem1d_dsd, .{
+  .base_address = &data_buffer,
+  .extent = tensor_size
+});
+
+const iq_west = @get_input_queue(2);
+const oq_east = @get_output_queue(3);
+const in_dsd_west = @get_dsd(fabin_dsd, .{
+    .extent = tensor_size,
+    .fabric_color = c_east,
+    .input_queue = iq_west,
+});
+const out_dsd_east = @get_dsd(fabout_dsd, .{
+    .extent = tensor_size,
+    .fabric_color = c_east,
+    .output_queue = oq_east,
+});
+
+const iq_east = @get_input_queue(4);
+const oq_west = @get_output_queue(5);
+const in_dsd_east = @get_dsd(fabin_dsd, .{
+    .extent = tensor_size,
+    .fabric_color = c_west,
+    .input_queue = iq_east,
+});
+const out_dsd_west = @get_dsd(fabout_dsd, .{
+    .extent = tensor_size,
+    .fabric_color = c_west,
+    .output_queue = oq_west,
+});
+
+const start_pong_task_id: local_task_id = @get_local_task_id(8);
+const recv_pong_task_id: local_task_id = @get_local_task_id(9);
+const start_final_task_id: local_task_id = @get_local_task_id(10);
+const recv_final_task_id: local_task_id = @get_local_task_id(11);
+const exit_task_id: local_task_id = @get_local_task_id(12);
+
+fn compute() void {
+  if (width == 1) {
+    sys_mod.unblock_cmd_stream();
+    return;
+  }
+
+  if (pe_x == 0) {
+    @fmovs(out_dsd_east, mem_dsd, .{
+      .async = true,
+      .activate = recv_pong_task_id
+    });
+  } else if (pe_x == width - 1) {
+    @fadds(mem_dsd, mem_dsd, in_dsd_west, .{
+      .async = true,
+      .activate = start_pong_task_id
+    });
+  } else {
+    @fadds(mem_dsd, mem_dsd, in_dsd_west, .{
+      .async = true,
+      .activate = recv_pong_task_id
+    });
+  }
+}
+
+task start_pong_task() void {
+  @fmovs(out_dsd_west, mem_dsd, .{
+    .async = true,
+    .activate = recv_final_task_id
+  });
+}
+
+task recv_pong_task() void {
+  if (pe_x == 0) {
+    @fadds(mem_dsd, mem_dsd, in_dsd_east, .{
+      .async = true,
+      .activate = start_final_task_id
+    });
+  } else {
+    @fadds(mem_dsd, mem_dsd, in_dsd_east, .{
+      .async = true,
+      .activate = recv_final_task_id
+    });
+  }
+}
+
+task start_final_task() void {
+  @fmovs(out_dsd_east, mem_dsd, .{
+    .async = true,
+    .activate = exit_task_id
+  });
+}
+
+task recv_final_task() void {
+  if (pe_x == 0) {
+    sys_mod.unblock_cmd_stream();
+  } else {
+    @fmovs(mem_dsd, in_dsd_west, .{
+      .async = true,
+      .activate = exit_task_id
+    });
+  }
+}
+
+task exit_task() void {
+  sys_mod.unblock_cmd_stream();
+}
+
+comptime {
+  if (pe_x > 0) {
+    @initialize_queue(iq_west, .{ .color = c_east });
+  }
+  if (pe_x < width - 1) {
+    @initialize_queue(oq_east, .{ .color = c_east });
+  }
+
+  if (pe_x < width - 1) {
+    @initialize_queue(iq_east, .{ .color = c_west });
+  }
+  if (pe_x > 0) {
+    @initialize_queue(oq_west, .{ .color = c_west });
+  }
+
+  @bind_local_task(start_pong_task, start_pong_task_id);
+  @bind_local_task(recv_pong_task, recv_pong_task_id);
+  @bind_local_task(start_final_task, start_final_task_id);
+  @bind_local_task(recv_final_task, recv_final_task_id);
+  @bind_local_task(exit_task, exit_task_id);
+
+  @export_symbol(ptr_data, "data_buffer");
+  @export_symbol(compute);
+}

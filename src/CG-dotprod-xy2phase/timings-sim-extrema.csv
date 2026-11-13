@@ -1,0 +1,11 @@
+event,extremum,cycles,microseconds,x,y
+earliest_aligned_start,min,48,0.056470588,1,0
+latest_aligned_start,max,61,0.071764706,0,0
+earliest_aligned_fused_x1_end,min,3788,4.456470588,7,3
+latest_aligned_fused_x1_end,max,4468,5.256470588,0,0
+latest_aligned_reduction_end,max,10312,12.131764706,0,0
+latest_aligned_remaining_collective_end,max,10381,12.212941176,15,15
+maximum_local_compute_x1_fused_duration,max,4407,5.184705882,0,0
+maximum_local_remaining_reduction_duration,max,5844,6.875294118,0,0
+maximum_local_post_reduction_duration,max,6564,7.722352941,15,13
+maximum_local_remaining_collective_duration,max,6591,7.754117647,15,13

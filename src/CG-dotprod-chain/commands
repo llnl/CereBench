@@ -1,0 +1,35 @@
+make clean
+
+export JOB="gemv-xy2phase-$(date +%Y%m%d_%H%M%S)"
+export WSE_SERVER="http://localhost:8080"
+
+W=16
+H=16
+M=256
+N=256
+SX=4
+SY=4
+
+make build-run \
+    ARCH=sdr \
+    W="$W" H="$H" \
+    M="$M" N="$N" \
+    SX="$SX" SY="$SY" \
+    WAIT_ALPHA=1 \
+    INPUT_MODE=pattern
+
+make wse-queue \
+    WSE_JOB="$JOB" \
+    WSE_SERVER="$WSE_SERVER" \
+    WSE_WIDTH="$W" \
+    WSE_HEIGHT="$H" \
+    WSE_LIFETIME=500
+
+echo "JOB=$JOB"
+
+JOB="$JOB" \
+WSE_SERVER="$WSE_SERVER" \
+W="$W" H="$H" RUNS=1 \
+./run_5_timings.sh
+
+column -s, -t out_hw/timing_5runs/results.csv

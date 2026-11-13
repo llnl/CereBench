@@ -1,0 +1,81 @@
+make clean
+
+export JOB="xy-sync-$(date +%Y%m%d_%H%M%S)"
+export WSE_SERVER="http://localhost:8080"
+
+make build-run \
+    ARCH=sdr \
+    W=512 H=512 B=64 \
+    SX=23 SY=23 \
+    WAIT_ALPHA=1
+
+make reference \
+    ARCH=sdr \
+    W=512 H=512 B=64 \
+    SX=23 SY=23 \
+    WAIT_ALPHA=1
+
+make wse-queue \
+    WSE_JOB="$JOB" \
+    WSE_SERVER="$WSE_SERVER" \
+    WSE_WIDTH=512 \
+    WSE_HEIGHT=512 \
+    WSE_LIFETIME=600
+
+echo "JOB=$JOB"
+JOB="$JOB" W=512 H=512 B=64 RUNS=1 ./run_5_timings.sh
+
+column -s, -t out_hw/timing_5runs/results.csv
+
+# BEGIN PER-TRIAL VALIDATION
+OUT="out_hw/timing_5runs"
+reference="${REFERENCE:-out-ref.bin}"
+validation_failed=0
+trials_found=0
+
+if [[ ! -f "$reference" ]]; then
+    echo "ERROR: missing reference: $reference"
+    validation_failed=1
+else
+    for trial in "$OUT"/trial_*; do
+        [[ -d "$trial" ]] || continue
+        trials_found=$((trials_found + 1))
+
+        actual="$trial/result-all.bin"
+
+        if [[ ! -f "$actual" ]]; then
+            echo "INVALID: $trial, missing result-all.bin"
+            validation_failed=1
+            continue
+        fi
+
+        if python3 verify.py \
+            --reference "$reference" \
+            --actual "$actual" \
+            --mode tolerant \
+            --atol 1e-5 \
+            --rtol 1e-5 \
+            > "$trial/verification.txt" 2>&1
+        then
+            echo "VALID:   $trial"
+        else
+            echo "INVALID: $trial"
+            validation_failed=1
+        fi
+
+        cat "$trial/verification.txt"
+    done
+fi
+
+if [[ "$trials_found" -eq 0 ]]; then
+    echo "ERROR: no trial directories found"
+    validation_failed=1
+fi
+
+if [[ "$validation_failed" -ne 0 ]]; then
+    echo "One or more validations failed"
+    false
+else
+    echo "All trial results validated successfully"
+fi
+# END PER-TRIAL VALIDATION

@@ -1,0 +1,136 @@
+param memcpy_params;
+param pe_x: i16;
+param width: i16;
+param c_east: color;
+param c_west: color;
+param tensor_size: i16;
+
+const sys_mod = @import_module("<memcpy/memcpy>", memcpy_params);
+
+comptime {
+  if (width <= 0) {
+    @compile_error("width must be > 0");
+  }
+  if (tensor_size <= 0) {
+    @compile_error("tensor_size must be > 0");
+  }
+}
+
+var data_buffer = @zeros([tensor_size]f32);
+var ptr_data: [*]f32 = &data_buffer;
+
+var reduce_recv_idx: i16 = 0;
+var bcast_recv_idx: i16 = 0;
+
+const mem_dsd = @get_dsd(mem1d_dsd, .{
+  .base_address = &data_buffer,
+  .extent = tensor_size
+});
+
+const iq_west = @get_input_queue(2);
+const oq_east = @get_output_queue(3);
+const iq_east = @get_input_queue(4);
+const oq_west = @get_output_queue(5);
+
+const out_dsd_east = @get_dsd(fabout_dsd, .{
+  .extent = tensor_size,
+  .fabric_color = c_east,
+  .output_queue = oq_east,
+});
+
+const out_dsd_west = @get_dsd(fabout_dsd, .{
+  .extent = tensor_size,
+  .fabric_color = c_west,
+  .output_queue = oq_west,
+});
+
+const start_task_id: local_task_id = @get_local_task_id(8);
+const reduce_send_task_id: local_task_id = @get_local_task_id(9);
+const bcast_send_task_id: local_task_id = @get_local_task_id(10);
+const exit_task_id: local_task_id = @get_local_task_id(11);
+
+const reduce_recv_task_id: data_task_id = @get_data_task_id(iq_west);
+const bcast_recv_task_id: data_task_id = @get_data_task_id(iq_east);
+
+fn compute() void {
+  @activate(start_task_id);
+}
+
+task start_task() void {
+  reduce_recv_idx = 0;
+  bcast_recv_idx = 0;
+
+  if (width == 1) {
+    @activate(exit_task_id);
+  } else if (pe_x == 0) {
+    @activate(reduce_send_task_id);
+  }
+}
+
+task reduce_send_task() void {
+  @fmovs(out_dsd_east, mem_dsd, .{
+    .async = true
+  });
+}
+
+task reduce_recv_task(x_val: f32) void {
+  data_buffer[reduce_recv_idx] += x_val;
+  reduce_recv_idx += 1;
+
+  if (reduce_recv_idx == tensor_size) {
+    reduce_recv_idx = 0;
+
+    if (pe_x == width - 1) {
+      @activate(bcast_send_task_id);
+    } else {
+      @activate(reduce_send_task_id);
+    }
+  }
+}
+
+task bcast_send_task() void {
+  @fmovs(out_dsd_west, mem_dsd, .{
+    .async = true
+  });
+
+  if (pe_x == 0) {
+    @activate(exit_task_id);
+  }
+}
+
+task bcast_recv_task(x_val: f32) void {
+  data_buffer[bcast_recv_idx] = x_val;
+  bcast_recv_idx += 1;
+
+  if (bcast_recv_idx == tensor_size) {
+    bcast_recv_idx = 0;
+
+    if (pe_x == 0) {
+      @activate(exit_task_id);
+    } else {
+      @activate(bcast_send_task_id);
+    }
+  }
+}
+
+task exit_task() void {
+  sys_mod.unblock_cmd_stream();
+}
+
+comptime {
+  @initialize_queue(iq_west, .{ .color = c_east });
+  @initialize_queue(oq_east, .{ .color = c_east });
+  @initialize_queue(iq_east, .{ .color = c_west });
+  @initialize_queue(oq_west, .{ .color = c_west });
+
+  @bind_local_task(start_task, start_task_id);
+  @bind_local_task(reduce_send_task, reduce_send_task_id);
+  @bind_local_task(bcast_send_task, bcast_send_task_id);
+  @bind_local_task(exit_task, exit_task_id);
+
+  @bind_data_task(reduce_recv_task, reduce_recv_task_id);
+  @bind_data_task(bcast_recv_task, bcast_recv_task_id);
+
+  @export_symbol(ptr_data, "data_buffer");
+  @export_symbol(compute);
+}
